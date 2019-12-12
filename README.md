@@ -29,9 +29,8 @@
 * Sign
   ```
   const EXCEPT_EXAMPLE_PRIVATE_KEY = "PVT_K1_2bfGi9rYsXQSXXTvJbDAPhHLQUojjaNLomdm3cEJ1XTzMqUt3V"
-  MSG := "hello"
-  msg, _ := hex.DecodeString(MSG)
-  hash := sha256.Sum256(msg)
+  msg := "hello"
+  hash := sha256.Sum256([]byte(msg))
   signStr, _ := Sign(EXCEPT_EXAMPLE_PRIVATE_KEY, hash[:])
   fmt.Println(signStr)
   ```
