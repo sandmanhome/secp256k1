@@ -15,6 +15,8 @@ const EXAMPLE_PRIVATE_KEY = "5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3
 const EXAMPLE_PUBLIC_KEY = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
 const EXCEPT_EXAMPLE_PRIVATE_KEY = "PVT_K1_2bfGi9rYsXQSXXTvJbDAPhHLQUojjaNLomdm3cEJ1XTzMqUt3V"
 const EXCEPT_EXAMPLE_PUBLIC_KEY = "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63"
+const EXAMPLE_PRIVATE_KEY1 = "PVT_K1_GjWZm14kTvh2beuqufQYYxfSncuMr4DGEaD5n9mdCJPpRgzBJ"
+const EXAMPLE_PUBLIC_KEY1 = "PUB_K1_4wcf7rKqTqkgk3nHpBYh3YVS7UmKu2Ai5hdZuWtiA12vMirf5n"
 
 const MSG = "aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906" +
 	"c0fbc75d000000000000000000000000" +
@@ -31,9 +33,9 @@ func TestConvertLegacyKey(t *testing.T) {
 }
 
 func TestPrivateKeyToPublicKey(t *testing.T) {
-	publicKeyByPrivateKey, _ := PrivateKeyToPublicKey(EXCEPT_EXAMPLE_PRIVATE_KEY)
+	publicKeyByPrivateKey, _ := PrivateKeyToPublicKey(EXAMPLE_PRIVATE_KEY1)
 	fmt.Println("publicKeyByPrivateKey", publicKeyByPrivateKey)
-	assert.Equal(t, EXCEPT_EXAMPLE_PUBLIC_KEY, publicKeyByPrivateKey)
+	assert.Equal(t, EXAMPLE_PUBLIC_KEY1, publicKeyByPrivateKey)
 }
 
 func TestNewKeyPair(t *testing.T) {

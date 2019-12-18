@@ -3,7 +3,7 @@
  * @Copyright: meetone
  * @Author: sandman sandmanhome@hotmail.com
  * @Date: 2019-12-11 15:54:24
- * @LastEditTime: 2019-12-12 16:52:56
+ * @LastEditTime: 2019-12-18 11:15:40
  * @LastEditors: sandman
  */
 package secp256k1
@@ -13,12 +13,14 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"math/big"
 	"strings"
 
-	"golang.org/x/crypto/ripemd160"
 	"secp256k1/btcsuite/btcd/btcec"
 	"secp256k1/btcsuite/btcutil"
 	"secp256k1/btcsuite/btcutil/base58"
+
+	"golang.org/x/crypto/ripemd160"
 )
 
 /**
@@ -183,23 +185,23 @@ func PrivateKeyToPublicKey(privateKey string) (string, error) {
 	return keyToString("PUB", "K1", publicRawKey), nil
 }
 
-func isEven(bit byte) bool {
+func isEven(bit uint) bool {
 	if bit&0x01 == 0x01 {
 		return false
 	}
 	return true
 }
 
-func encodeToPublicRawKey(X, Y []byte) []byte {
+func encodeToPublicRawKey(X, Y *big.Int) []byte {
 	var y byte = 0x02
-	if !isEven(Y[0]) {
+	if !isEven(Y.Bit(0)) {
 		y = 0x03
 	}
 
-	payloadLen := len(X) + 1
+	payloadLen := len(X.Bytes()) + 1
 	payload := make([]byte, 0, payloadLen)
 	payload = append(payload, y)
-	payload = append(payload, X...)
+	payload = append(payload, X.Bytes()...)
 	return payload
 }
 
@@ -211,7 +213,7 @@ func encodeToPublicRawKeyByY0(X []byte, Y0 byte) []byte {
 	return payload
 }
 
-func encodeToLegacyPublicRawKey(X, Y []byte) []byte {
+func encodeToLegacyPublicRawKey(X, Y *big.Int) []byte {
 	return encodeToPublicRawKey(X, Y)
 }
 
@@ -219,9 +221,9 @@ func decodeLegacyPublicRawKey(legacyPublicRawKey []byte) ([]byte, byte, error) {
 	return legacyPublicRawKey[1:], legacyPublicRawKey[0:1][0], nil
 }
 
-func getPointFromEcc(privateRawKey []byte) ([]byte, []byte) {
+func getPointFromEcc(privateRawKey []byte) (*big.Int, *big.Int) {
 	_, pubKey := btcec.PrivKeyFromBytes(btcec.S256(), privateRawKey)
-	return pubKey.X.Bytes(), pubKey.Y.Bytes()
+	return pubKey.X, pubKey.Y
 }
 
 func newRandomPrivKey(randSource io.Reader) (*btcec.PrivateKey, error) {
@@ -242,8 +244,8 @@ func getPrivateRawData(privKey *btcec.PrivateKey) []byte {
 	return privKey.D.Bytes()
 }
 
-func getPublicRawData(privKey *btcec.PrivateKey) ([]byte, []byte) {
-	return privKey.PubKey().X.Bytes(), privKey.PubKey().Y.Bytes()
+func getPublicRawData(privKey *btcec.PrivateKey) (*big.Int, *big.Int) {
+	return privKey.PubKey().X, privKey.PubKey().Y
 }
 
 func keyToString(prefix, curveType string, payload []byte) string {
