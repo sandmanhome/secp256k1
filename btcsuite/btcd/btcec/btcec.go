@@ -890,6 +890,7 @@ var secp256k1 KoblitzCurve
 
 func initAll() {
 	initS256()
+	initP256Sm2()
 }
 
 // fromHex converts the passed hex string into a big integer pointer and will

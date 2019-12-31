@@ -10,6 +10,7 @@ package secp256k1
 
 import (
 	"bytes"
+	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
 	"io"
@@ -30,12 +31,12 @@ import (
  * @return: SIG_K1_
  */
 func Sign(privateKey string, hash []byte) (string, error) {
-	_, _, privateRawData, err := stringToKey(privateKey)
+	_, curveType, privateRawData, err := stringToKey(privateKey)
 	if err != nil {
 		return "", err
 	}
 
-	return sign(privateRawData, hash)
+	return sign(privateRawData, hash, curveType)
 }
 
 /**
@@ -50,21 +51,32 @@ func SignFromLegacyPrivateKey(legacyPrivateKey string, hash []byte) (string, err
 		return "", err
 	}
 
-	return sign(privateRawData, hash)
+	return sign(privateRawData, hash, "K1")
 }
 
-func getKeyByPrivateRawData(privateRawData []byte) (*btcec.PrivateKey, *btcec.PublicKey) {
+func getKeyByPrivateRawData(curveType string, privateRawData []byte) (*btcec.PrivateKey, *btcec.PublicKey) {
+	if curveType == "SM2" {
+		return btcec.PrivKeyFromBytes(btcec.P256Sm2(), privateRawData)
+	}
 	return btcec.PrivKeyFromBytes(btcec.S256(), privateRawData)
 }
 
-func sign(privateRawData, hash []byte) (string, error) {
-	privKey, _ := getKeyByPrivateRawData(privateRawData)
-	sigData, err := privKey.SignCanonicalInfinite(btcec.S256(), hash)
+func sign(privateRawData, hash []byte, curveType string) (string, error) {
+	privKey, _ := getKeyByPrivateRawData(curveType, privateRawData)
+	var sigData []byte
+	var err error
+	if curveType == "SM2" {
+		sigData, err = privKey.SignCanonicalInfiniteSM2(hash)
+	} else {
+		curve := btcec.S256()
+		sigData, err = privKey.SignCanonicalInfinite(curve, hash)
+	}
+
 	if err != nil {
 		return "", err
 	}
 
-	return keyToString("SIG", "K1", sigData), nil
+	return keyToString("SIG", curveType, sigData), nil
 }
 
 func privateRawDataToPrivKey(privateRawData []byte) *btcec.PrivateKey {
@@ -78,8 +90,29 @@ func privateRawDataToPrivKey(privateRawData []byte) *btcec.PrivateKey {
  * @param :
  * @return: privateKey publicKey
  */
+func NewSM2KeyPair() (string, string, error) {
+	privKey, err := newRandomPrivKey(rand.Reader, btcec.P256Sm2())
+	if err != nil {
+		return "", "", err
+	}
+
+	privateRawData := getPrivateRawData(privKey)
+	privateKey := keyToString("PVT", "SM2", privateRawData)
+
+	X, Y := getPublicRawData(privKey)
+	publicRawKey := encodeToPublicRawKey(X, Y)
+	publicKey := keyToString("PUB", "SM2", publicRawKey)
+
+	return privateKey, publicKey, nil
+}
+
+/**
+ * @description: secp256k1 NewKeyPair, format "PVT_K1_..."
+ * @param :
+ * @return: privateKey publicKey
+ */
 func NewKeyPair() (string, string, error) {
-	privKey, err := newRandomPrivKey(rand.Reader)
+	privKey, err := newRandomPrivKey(rand.Reader, btcec.S256())
 	if err != nil {
 		return "", "", err
 	}
@@ -100,7 +133,7 @@ func NewKeyPair() (string, string, error) {
  * @return: privateKey publicKey
  */
 func NewEosKeyPair() (string, string, error) {
-	privKey, err := newRandomPrivKey(rand.Reader)
+	privKey, err := newRandomPrivKey(rand.Reader, btcec.S256())
 	if err != nil {
 		return "", "", err
 	}
@@ -176,13 +209,18 @@ func PrivateKeyToPublicKey(privateKey string) (string, error) {
 		return "", err
 	}
 
-	if curveType != "K1" {
-		return "", fmt.Errorf("Only support K1")
+	var curve elliptic.Curve
+	if curveType == "K1" {
+		curve = btcec.S256()
+	} else if curveType == "SM2" {
+		curve = btcec.P256Sm2()
+	} else {
+		return "", fmt.Errorf("Only support K1/SM2")
 	}
 
-	X, Y := getPointFromEcc(payload)
+	X, Y := getPointFromEcc(payload, curve)
 	publicRawKey := encodeToPublicRawKey(X, Y)
-	return keyToString("PUB", "K1", publicRawKey), nil
+	return keyToString("PUB", curveType, publicRawKey), nil
 }
 
 func isEven(bit uint) bool {
@@ -221,12 +259,12 @@ func decodeLegacyPublicRawKey(legacyPublicRawKey []byte) ([]byte, byte, error) {
 	return legacyPublicRawKey[1:], legacyPublicRawKey[0:1][0], nil
 }
 
-func getPointFromEcc(privateRawKey []byte) (*big.Int, *big.Int) {
-	_, pubKey := btcec.PrivKeyFromBytes(btcec.S256(), privateRawKey)
+func getPointFromEcc(privateRawKey []byte, curve elliptic.Curve) (*big.Int, *big.Int) {
+	_, pubKey := btcec.PrivKeyFromBytes(curve, privateRawKey)
 	return pubKey.X, pubKey.Y
 }
 
-func newRandomPrivKey(randSource io.Reader) (*btcec.PrivateKey, error) {
+func newRandomPrivKey(randSource io.Reader, curve elliptic.Curve) (*btcec.PrivateKey, error) {
 	rawPrivKey := make([]byte, 32)
 	written, err := io.ReadFull(randSource, rawPrivKey)
 	if err != nil {
@@ -236,7 +274,7 @@ func newRandomPrivKey(randSource io.Reader) (*btcec.PrivateKey, error) {
 		return nil, fmt.Errorf("couldn't write 32 bytes of randomness to seed ephemeral private key")
 	}
 
-	privKey, _ := btcec.PrivKeyFromBytes(btcec.S256(), rawPrivKey)
+	privKey, _ := btcec.PrivKeyFromBytes(curve, rawPrivKey)
 	return privKey, nil
 }
 
