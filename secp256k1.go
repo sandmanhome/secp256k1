@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"math/big"
@@ -26,12 +27,33 @@ import (
 
 /**
  * @description: Sign hash by privateKey string
+ * @param : privateKey of "PVT_K1_..."  "PVT_SM2_..."
+ * @param : hash sha256 of msg
+ * @return: SIG_K1_ or SIG_SM2_
+ */
+func SignMsg(privateKey string, msg []byte) (string, error) {
+	_, curveType, privateRawData, err := StringToKey(privateKey)
+	if err != nil {
+		return "", err
+	}
+
+	// if curveType == "SM2" {
+	// 	hash := sm3.Sm3Sum(msg)
+	// 	return sign(privateRawData, hash[:], curveType)
+	// }
+
+	hash := sha256.Sum256(msg)
+	return sign(privateRawData, hash[:], curveType)
+}
+
+/**
+ * @description: Sign hash by privateKey string
  * @param : privateKey of "PVT_K1_..."
  * @param : hash sha256 of msg
  * @return: SIG_K1_
  */
 func Sign(privateKey string, hash []byte) (string, error) {
-	_, curveType, privateRawData, err := stringToKey(privateKey)
+	_, curveType, privateRawData, err := StringToKey(privateKey)
 	if err != nil {
 		return "", err
 	}
@@ -53,6 +75,8 @@ func SignFromLegacyPrivateKey(legacyPrivateKey string, hash []byte) (string, err
 
 	return sign(privateRawData, hash, "K1")
 }
+
+const keyBytesLen uint = 32
 
 func getKeyByPrivateRawData(curveType string, privateRawData []byte) (*btcec.PrivateKey, *btcec.PublicKey) {
 	if curveType == "SM2" {
@@ -76,13 +100,21 @@ func sign(privateRawData, hash []byte, curveType string) (string, error) {
 		return "", err
 	}
 
-	return keyToString("SIG", curveType, sigData), nil
+	return KeyToString("SIG", curveType, sigData), nil
 }
 
-func privateRawDataToPrivKey(privateRawData []byte) *btcec.PrivateKey {
-	privKeyBytes := privateRawData[1 : 1+btcec.PrivKeyBytesLen]
-	privKey, _ := btcec.PrivKeyFromBytes(btcec.S256(), privKeyBytes)
-	return privKey
+func NewKeyPairRaw(curve elliptic.Curve) ([]byte, []byte, error) {
+	privKey, err := newRandomPrivKey(rand.Reader, curve)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	privateRawKey := getPrivateRawKey(privKey)
+
+	X, Y := getPublicRawData(privKey)
+	publicRawKey := encodeToPublicRawKey(X, Y)
+
+	return privateRawKey, publicRawKey, nil
 }
 
 /**
@@ -91,18 +123,13 @@ func privateRawDataToPrivKey(privateRawData []byte) *btcec.PrivateKey {
  * @return: privateKey publicKey
  */
 func NewSM2KeyPair() (string, string, error) {
-	privKey, err := newRandomPrivKey(rand.Reader, btcec.P256Sm2())
+	privateRawKey, publicRawKey, err := NewKeyPairRaw(btcec.P256Sm2())
 	if err != nil {
 		return "", "", err
 	}
 
-	privateRawData := getPrivateRawData(privKey)
-	privateKey := keyToString("PVT", "SM2", privateRawData)
-
-	X, Y := getPublicRawData(privKey)
-	publicRawKey := encodeToPublicRawKey(X, Y)
-	publicKey := keyToString("PUB", "SM2", publicRawKey)
-
+	privateKey := KeyToString("PVT", "SM2", privateRawKey)
+	publicKey := KeyToString("PUB", "SM2", publicRawKey)
 	return privateKey, publicKey, nil
 }
 
@@ -112,18 +139,13 @@ func NewSM2KeyPair() (string, string, error) {
  * @return: privateKey publicKey
  */
 func NewKeyPair() (string, string, error) {
-	privKey, err := newRandomPrivKey(rand.Reader, btcec.S256())
+	privateRawKey, publicRawKey, err := NewKeyPairRaw(btcec.S256())
 	if err != nil {
 		return "", "", err
 	}
 
-	privateRawData := getPrivateRawData(privKey)
-	privateKey := keyToString("PVT", "K1", privateRawData)
-
-	X, Y := getPublicRawData(privKey)
-	publicRawKey := encodeToPublicRawKey(X, Y)
-	publicKey := keyToString("PUB", "K1", publicRawKey)
-
+	privateKey := KeyToString("PVT", "K1", privateRawKey)
+	publicKey := KeyToString("PUB", "K1", publicRawKey)
 	return privateKey, publicKey, nil
 }
 
@@ -133,21 +155,16 @@ func NewKeyPair() (string, string, error) {
  * @return: privateKey publicKey
  */
 func NewEosKeyPair() (string, string, error) {
-	privKey, err := newRandomPrivKey(rand.Reader, btcec.S256())
+	privateRawKey, publicRawKey, err := NewKeyPairRaw(btcec.S256())
 	if err != nil {
 		return "", "", err
 	}
 
-	privateRawData := getPrivateRawData(privKey)
-	legacyPrivateRawKey := encodeToLegacyPrivateRawKey(privateRawData)
+	legacyPrivateRawKey := encodeToLegacyPrivateRawKey(privateRawKey)
 	legacyPrivate := legacyPrivateKeyToString(legacyPrivateRawKey)
 
-	X, Y := getPublicRawData(privKey)
-	legacyPublicRawKey := encodeToLegacyPublicRawKey(X, Y)
-	legacyPublicKey := legacyPublicKeyToString("EOS", legacyPublicRawKey)
-
+	legacyPublicKey := legacyPublicKeyToString("EOS", publicRawKey)
 	return legacyPrivate, legacyPublicKey, nil
-
 }
 
 /**
@@ -165,7 +182,7 @@ func ConvertLegacyPrivateKey(legacyPrivateKey string) (string, error) {
 		return "", err
 	}
 
-	return keyToString("PVT", "K1", privateRawData), nil
+	return KeyToString("PVT", "K1", privateRawData), nil
 }
 
 /**
@@ -184,7 +201,7 @@ func ConvertLegacyPublicKey(legacyPublicKey string) (string, error) {
 	}
 
 	publicRawKey := encodeToPublicRawKeyByY0(X, Y0)
-	return keyToString("PUB", "K1", publicRawKey), nil
+	return KeyToString("PUB", "K1", publicRawKey), nil
 }
 
 func encodeToLegacyPrivateRawKey(rawKey []byte) []byte {
@@ -204,23 +221,28 @@ func decodeLegacyPrivateRawKey(legacyPrivateRawKey []byte) ([]byte, error) {
 }
 
 func PrivateKeyToPublicKey(privateKey string) (string, error) {
-	_, curveType, payload, err := stringToKey(privateKey)
+	_, curveType, payload, err := StringToKey(privateKey)
 	if err != nil {
 		return "", err
 	}
 
+	publicRawKey, err := PrivateRawKeyToPublicRawKey(curveType, payload)
+	return KeyToString("PUB", curveType, publicRawKey), nil
+}
+
+func PrivateRawKeyToPublicRawKey(curveType string, privateRawKey []byte) ([]byte, error) {
 	var curve elliptic.Curve
 	if curveType == "K1" {
 		curve = btcec.S256()
 	} else if curveType == "SM2" {
 		curve = btcec.P256Sm2()
 	} else {
-		return "", fmt.Errorf("Only support K1/SM2")
+		return nil, fmt.Errorf("Only support K1/SM2")
 	}
 
-	X, Y := getPointFromEcc(payload, curve)
+	X, Y := getPointFromEcc(privateRawKey, curve)
 	publicRawKey := encodeToPublicRawKey(X, Y)
-	return keyToString("PUB", curveType, publicRawKey), nil
+	return publicRawKey, nil
 }
 
 func isEven(bit uint) bool {
@@ -236,19 +258,25 @@ func encodeToPublicRawKey(X, Y *big.Int) []byte {
 		y = 0x03
 	}
 
-	payloadLen := len(X.Bytes()) + 1
+	payloadLen := keyBytesLen + 1
 	payload := make([]byte, 0, payloadLen)
 	payload = append(payload, y)
-	payload = append(payload, X.Bytes()...)
-	return payload
+	return paddedAppend(keyBytesLen, payload, X.Bytes())
 }
 
 func encodeToPublicRawKeyByY0(X []byte, Y0 byte) []byte {
-	payloadLen := len(X) + 1
+	// fmt.Println(len(X))
+	// payloadLen := len(X) + 1
+	// payload := make([]byte, 0, payloadLen)
+	// payload = append(payload, Y0)
+	// payload = append(payload, X...)
+	// return payload
+
+	payloadLen := keyBytesLen + 1
+	fmt.Println(payloadLen)
 	payload := make([]byte, 0, payloadLen)
 	payload = append(payload, Y0)
-	payload = append(payload, X...)
-	return payload
+	return paddedAppend(keyBytesLen, payload, X)
 }
 
 func encodeToLegacyPublicRawKey(X, Y *big.Int) []byte {
@@ -278,15 +306,16 @@ func newRandomPrivKey(randSource io.Reader, curve elliptic.Curve) (*btcec.Privat
 	return privKey, nil
 }
 
-func getPrivateRawData(privKey *btcec.PrivateKey) []byte {
-	return privKey.D.Bytes()
+func getPrivateRawKey(privKey *btcec.PrivateKey) []byte {
+	payload := make([]byte, 0, keyBytesLen)
+	return paddedAppend(keyBytesLen, payload, privKey.D.Bytes())
 }
 
 func getPublicRawData(privKey *btcec.PrivateKey) (*big.Int, *big.Int) {
 	return privKey.PubKey().X, privKey.PubKey().Y
 }
 
-func keyToString(prefix, curveType string, payload []byte) string {
+func KeyToString(prefix, curveType string, payload []byte) string {
 	checksum := ripemd160checksum(payload, curveType)
 	encodeLen := len(payload) + len(checksum)
 
@@ -312,7 +341,7 @@ func legacyPrivateKeyToString(payload []byte) string {
 	return base58CheckEncode(payload)
 }
 
-func stringToKey(keyStr string) (string, string, []byte, error) {
+func StringToKey(keyStr string) (string, string, []byte, error) {
 	arr := strings.Split(keyStr, "_")
 	if len(arr) != 3 || (arr[0] != "PUB" && arr[0] != "PVT" && arr[0] != "SIG") {
 		return "", "", nil, fmt.Errorf("unrecognized key format")
@@ -382,4 +411,14 @@ func base58CheckDecode(encodeStr string) ([]byte, []byte, error) {
 	}
 
 	return payload, checksum, nil
+}
+
+// paddedAppend appends the src byte slice to dst, returning the new slice.
+// If the length of the source is smaller than the passed size, leading zero
+// bytes are appended to the dst slice before appending src.
+func paddedAppend(size uint, dst, src []byte) []byte {
+	for i := 0; i < int(size)-len(src); i++ {
+		dst = append(dst, 0)
+	}
+	return append(dst, src...)
 }

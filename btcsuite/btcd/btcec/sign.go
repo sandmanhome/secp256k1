@@ -10,10 +10,10 @@ package btcec
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math/big"
-	"secp256k1/sm3"
 )
 
 /**
@@ -95,7 +95,7 @@ func signRFC6979SM2(privateKey *PrivateKey, hash []byte, nonce int) (*Signature,
 // It takes a 32-byte hash as an input and returns 32-byte nonce to be used in ECDSA algorithm.
 func nonceRFC6979SM2(privkey *big.Int, hash []byte, nonce int) *big.Int {
 	if nonce > 0 {
-		moreHash := sm3.New()
+		moreHash := sha256.New()
 		moreHash.Write(hash)
 		moreHash.Write(bytes.Repeat([]byte{0x00}, nonce))
 		hash = moreHash.Sum(nil)
@@ -104,7 +104,7 @@ func nonceRFC6979SM2(privkey *big.Int, hash []byte, nonce int) *big.Int {
 	curve := P256Sm2()
 	q := curve.Params().N
 	x := privkey
-	alg := sm3.New
+	alg := sha256.New
 
 	qlen := q.BitLen()
 	holen := alg().Size()

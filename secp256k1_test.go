@@ -56,7 +56,9 @@ func TestNewKeyPair(t *testing.T) {
 
 	privateKey, publicKey, _ = NewSM2KeyPair()
 	fmt.Println(privateKey)
+	_, _, _, _ = StringToKey(privateKey)
 	fmt.Println(publicKey)
+	_, _, _, _ = StringToKey(publicKey)
 	publicKeyByPrivateKey, _ = PrivateKeyToPublicKey(privateKey)
 	fmt.Println("publicKeyByPrivateKey", publicKeyByPrivateKey)
 	assert.Equal(t, publicKey, publicKeyByPrivateKey)
@@ -71,7 +73,7 @@ func TestLegacySign(t *testing.T) {
 
 	privateRawData, _ := stringToPrivateRawData(EXAMPLE_PRIVATE_KEY)
 	_, pubKey := getKeyByPrivateRawData("K1", privateRawData)
-	_, _, sig, _ := stringToKey(signStr)
+	_, _, sig, _ := StringToKey(signStr)
 	recoverPubKey, _, _ := btcec.RecoverCompact(btcec.S256(), sig, hash[:])
 	assert.Equal(t, pubKey.X, recoverPubKey.X)
 	assert.Equal(t, pubKey.Y, recoverPubKey.Y)
@@ -84,9 +86,9 @@ func TestSign(t *testing.T) {
 	fmt.Println(signStr)
 	assert.Equal(t, EXCEPT_SIGN_STR, signStr)
 
-	_, _, privateRawData, _ := stringToKey(EXCEPT_EXAMPLE_PRIVATE_KEY)
+	_, _, privateRawData, _ := StringToKey(EXCEPT_EXAMPLE_PRIVATE_KEY)
 	_, pubKey := getKeyByPrivateRawData("K1", privateRawData)
-	_, _, sig, _ := stringToKey(signStr)
+	_, _, sig, _ := StringToKey(signStr)
 	recoverPubKey, _, _ := btcec.RecoverCompact(btcec.S256(), sig, hash[:])
 	assert.Equal(t, pubKey.X, recoverPubKey.X)
 	assert.Equal(t, pubKey.Y, recoverPubKey.Y)
@@ -94,15 +96,15 @@ func TestSign(t *testing.T) {
 
 func TestSignSM2(t *testing.T) {
 	msg, _ := hex.DecodeString(MSG)
-	hash := sm3.Sm3Sum(msg)
+	//hash := sm3.Sm3Sum(msg)
+	hash := sha256.Sum256(msg)
 	signStr, _ := Sign(SM2_PRIVATE_KEY, hash[:])
 	fmt.Println(signStr)
-	assert.Equal(t, EXCEPT_SM2_SIGN_STR, signStr)
 
-	_, curveType, privateRawData, _ := stringToKey(SM2_PRIVATE_KEY)
+	_, curveType, privateRawData, _ := StringToKey(SM2_PRIVATE_KEY)
 	_, pubKey := getKeyByPrivateRawData(curveType, privateRawData)
 
-	_, _, sig, _ := stringToKey(signStr)
+	_, _, sig, _ := StringToKey(signStr)
 	recoverPubKey, _, _ := btcec.RecoverCompactSM2(btcec.P256Sm2(), sig, hash[:])
 	assert.Equal(t, pubKey.X, recoverPubKey.X)
 	assert.Equal(t, pubKey.Y, recoverPubKey.Y)
